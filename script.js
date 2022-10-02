@@ -20,7 +20,7 @@ const accounts = [
       "2022-09-12T23:36:17.929Z",
       "2022-09-15T12:51:31.398Z",
       "2022-09-19T06:41:26.190Z",
-      "2022-09-21T08:11:36.678Z",
+      "2022-10-02T08:11:36.678Z",
     ],
     currency: "USD",
     locale: "en-US",
@@ -84,6 +84,37 @@ function showCurrency(value, locale, currency) {
     currency: currency,
   }).format(value);
 }
+/** Days calculation for every transactions */
+
+// function formateMoveDate(date, locale) {
+//   const calculateDays = (date1, date2) =>
+//     Math.round(Math.abs(date2 - date1) / (24 * 60 * 60 * 1000));
+//   const daysPassed = calculateDays(new Date(), date);
+//   if (daysPassed === 0) return `Today`;
+//   if (daysPassed === 1) return `Yesterday`;
+//   if (daysPassed <= 7) return `${daysPassed} days ago`;
+
+//   return new Intl.DateTimeFormat(locale, {
+//     year: "numeric",
+//     month: "short",
+//     day: "2-digit",
+//   }).format(date);
+// }
+
+function formateMoveDate(date, locale) {
+  const daysPassed = Math.round(
+    Math.abs(new Date() - date) / (24 * 60 * 60 * 1000)
+  );
+  if (daysPassed === 0) return `Today`;
+  if (daysPassed === 1) return `Yesterday`;
+  if (daysPassed <= 7) return `${daysPassed} days ago`;
+
+  return new Intl.DateTimeFormat(locale, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
 
 /////////////////////////////////////////////////////////////////////////
 //Display movements
@@ -94,19 +125,23 @@ function displayMovements(account, sort = false) {
     ? account.movements.slice(0).sort((a, b) => a - b)
     : account.movements;
 
-  moves.forEach((move, index) => {
+  moves.forEach((move, i) => {
     const movetype = move > 0 ? "deposit" : "withdrawal";
+    //currency
     const moveWithCurrency = showCurrency(
       move,
       account.locale,
       account.currency
     );
+    //date for every move
+    const date = new Date(account.movementsDates[i]);
+    const displayDate = formateMoveDate(date, account.locale);
     const html = `
 <div class="movements-row">
         <div class="movements-type movements-type-${movetype}">${
-      index + 1
+      i + 1
     } deposit</div>
-        <div class="movements-date">5 days ago</div>
+        <div class="movements-date">${displayDate}</div>
         <div class="movements-value">${moveWithCurrency}</div>
       </div>`;
     containerMovements.insertAdjacentHTML("afterbegin", html);
@@ -189,7 +224,7 @@ createusername(accounts);
 /////////////////////////////////////////////////////////////////////////
 //login
 /////////////////////////////////////////////////////////////////////////
-let currentAccount;
+let currentAccount, timer;
 btnLogin.addEventListener("click", function (e) {
   e.preventDefault();
 
@@ -205,7 +240,24 @@ btnLogin.addEventListener("click", function (e) {
       containerApp.style.opacity = 1;
       //update UI
       updateUi(currentAccount);
+
+      //display date and time of balance after login
+      const now = new Date();
+      const timeOptions = {
+        year: "numeric",
+        month: "numeric",
+        day: "numeric",
+        hour: "numeric",
+        minute: "numeric",
+      };
+      labelDate.textContent = new Intl.DateTimeFormat(
+        currentAccount.locale,
+        timeOptions
+      ).format(now);
     }, 3000);
+    // log out timer
+    if (timer) clearInterval(timer);
+    timer = logOut();
   } else {
     setTimeout(() => {
       labelWelcome.textContent = "Oops, login failed";
@@ -237,6 +289,10 @@ btnTransfer.addEventListener("click", (e) => {
       //trasnfer balance
       currentAccount.movements.push(-transferAmount);
       receiverAccount.movements.push(transferAmount);
+      //update transaction date
+      currentAccount.movementsDates.push(new Date().toISOString());
+      receiverAccount.movementsDates.push(new Date().toISOString());
+
       //update ui
       updateUi(currentAccount);
       //clear fields
@@ -245,10 +301,16 @@ btnTransfer.addEventListener("click", (e) => {
       // welcome success messge
       labelWelcome.textContent = `${transferAmount}$ is transfer to ${receiverAccount.owner}`;
     }, 3000);
+    // log out timer
+    if (timer) clearInterval(timer);
+    timer = logOut();
   } else {
     setTimeout(() => {
       labelWelcome.textContent = `Transfer failed   `;
     }, 3000);
+    // log out timer
+    if (timer) clearInterval(timer);
+    timer = logOut();
   }
 });
 /////////////////////////////////////////////////
@@ -266,15 +328,23 @@ btnLoan.addEventListener("click", (e) => {
     setTimeout(() => {
       //add loan to current account
       currentAccount.movements.push(loanAmount);
+      //update transaction date time for a new loan request
+      currentAccount.movementsDates.push(new Date().toISOString());
+
       //update ui
       updateUi(currentAccount);
       //show confirmation sms
       labelWelcome.textContent = "loan successfull";
-    }, 3000);
+    }, 3000); // log out timer
+    if (timer) clearInterval(timer);
+    timer = logOut();
   } else {
     setTimeout(() => {
       labelWelcome.textContent = "loan is not successfull";
     }, 3000);
+    // log out timer
+    if (timer) clearInterval(timer);
+    timer = logOut();
   } //clear field
   inputLoanAmount.value = "";
   inputLoanAmount.blur();
@@ -299,10 +369,16 @@ btnClose.addEventListener("click", (e) => {
       //sms
       labelWelcome.textContent = `account deleted `;
     }, 3000);
+    // log out timer
+    if (timer) clearInterval(timer);
+    timer = logOut();
   } else {
     setTimeout(() => {
       labelWelcome.textContent = `account is not deleted `;
     }, 3000);
+    // log out timer
+    if (timer) clearInterval(timer);
+    timer = logOut();
   }
 
   //clear fields
@@ -319,3 +395,25 @@ btnSort.addEventListener("click", function (e) {
   displayMovements(currentAccount, !sortedMove);
   sortedMove = !sortedMove;
 });
+
+/**loout timer  */
+
+function logOut() {
+  labelTimer.textContent = "";
+  let time = 120;
+
+  const clock = () => {
+    const min = String(Math.trunc(time / 60)).padStart(2, 0);
+    const sec = String(time % 60).padStart(2, 0);
+    if (time === 0) {
+      clearInterval(timer);
+      labelWelcome.textContent = `You've been logged out`;
+      containerApp.style.opacity = 0;
+    }
+    labelTimer.textContent = `${min}:${sec}`;
+    time--;
+  };
+  clock();
+  timer = setInterval(clock, 1000);
+  return timer;
+}
