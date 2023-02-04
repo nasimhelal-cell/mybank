@@ -1,4 +1,0 @@
-Acc:1
-username: nh,password:1234
-Acc:2
-username:mh,password:5678
